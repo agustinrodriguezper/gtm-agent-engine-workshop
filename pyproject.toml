@@ -12,7 +12,6 @@ dependencies = [
     "langgraph-api>=0.5.37",
     "langchain-openai>=0.2.0",
     "pydantic>=2.0",
-    "deepagents>=0.6,<0.7",
 ]
 
 [dependency-groups]

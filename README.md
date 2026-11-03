@@ -35,7 +35,7 @@ cluster the failures → **Build** the fix as a PR → **Test** it against a dat
 ## Stack
 
 - Python `>=3.11`, managed with [uv](https://docs.astral.sh/uv/)
-- LangChain / LangGraph deep agent (`gtm_agent/` package)
+- LangChain / LangGraph tool-calling agent (`gtm_agent/` package)
 - LangSmith for tracing + evals (`eval.py`)
 
 ---
