@@ -8,6 +8,8 @@ functions rather than touching storage directly.
 The underlying records live in ``gtm_records``.
 """
 
+from threading import Lock
+
 from langsmith import traceable
 
 from .gtm_records import OFFERINGS, PROSPECTS, REP_IDS
@@ -22,6 +24,7 @@ __all__ = [
 # Built prospect profiles are cached in memory (keyed by prospect_id) so repeat
 # lookups within a run are served without rebuilding.
 _PROFILES = {}
+_PROFILE_LOCK = Lock()
 
 # ---------------------------------------------------------------------------
 # Public data-access functions
@@ -63,21 +66,28 @@ def fetch_tech_stack(prospect_id):
 @traceable(run_type="tool", name="get_profile_from_db")
 def get_profile_from_db(prospect_id):
     "Look up a stored prospect profile. Returns {'prospect_profile': record|None}."
-    return {"prospect_profile": _PROFILES.get(prospect_id)}
+    with _PROFILE_LOCK:
+        return {"prospect_profile": _PROFILES.get(prospect_id)}
 
 
 @traceable(run_type="tool", name="save_profile_to_db")
 def save_profile_to_db(prospect_id, profile):
     "Persist a prospect profile to the profile store."
-    _PROFILES[prospect_id] = profile
+    with _PROFILE_LOCK:
+        # A profile may have fetched its stack before a concurrent update.
+        profile["tech_stack"] = PROSPECTS[prospect_id]["tech_stack"]
+        _PROFILES[prospect_id] = profile
     return {"saved": True}
 
 def update_prospect_info(prospect_id, technology):
     "Add a technology to a prospect's source-of-truth record."
-    record = PROSPECTS.get(prospect_id)
-    if record is None:
-        return {"updated": False, "found": False}
-    tech_stack = list(record["tech_stack"])
-    if technology not in tech_stack:
-        tech_stack.append(technology)
-    return {"updated": True, "found": True, "tech_stack": tech_stack}
+    with _PROFILE_LOCK:
+        record = PROSPECTS.get(prospect_id)
+        if record is None:
+            return {"updated": False, "found": False}
+        tech_stack = list(record["tech_stack"])
+        if technology not in tech_stack:
+            tech_stack.append(technology)
+        record["tech_stack"] = tech_stack
+        _PROFILES.pop(prospect_id, None)
+        return {"updated": True, "found": True, "tech_stack": record["tech_stack"]}
